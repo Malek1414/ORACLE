@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 220" width="140" height="220">
+  <!-- Car body -->
+  <rect id="body" x="30" y="30" width="80" height="160" rx="12" fill="#e8e8e8" stroke="#555" stroke-width="2"/>
+  <!-- Hood -->
+  <rect id="hood" x="38" y="30" width="64" height="28" rx="6" fill="#d0d0d0" stroke="#555" stroke-width="1.5"/>
+  <!-- Trunk -->
+  <rect id="trunk" x="38" y="162" width="64" height="28" rx="6" fill="#d0d0d0" stroke="#555" stroke-width="1.5"/>
+  <!-- Windscreen lines -->
+  <line x1="38" y1="60" x2="102" y2="60" stroke="#aaa" stroke-width="1"/>
+  <line x1="38" y1="158" x2="102" y2="158" stroke="#aaa" stroke-width="1"/>
+  <!-- Doors -->
+  <line x1="30" y1="95" x2="110" y2="95" stroke="#999" stroke-width="0.8" stroke-dasharray="2,2"/>
+  <line x1="30" y1="125" x2="110" y2="125" stroke="#999" stroke-width="0.8" stroke-dasharray="2,2"/>
+  <!-- Wheels -->
+  <rect id="wheel-fl" x="14" y="44" width="16" height="30" rx="4" fill="#333"/>
+  <rect id="wheel-fr" x="110" y="44" width="16" height="30" rx="4" fill="#333"/>
+  <rect id="wheel-rl" x="14" y="146" width="16" height="30" rx="4" fill="#333"/>
+  <rect id="wheel-rr" x="110" y="146" width="16" height="30" rx="4" fill="#333"/>
+  <!-- Zone anchor points (invisible, used for hit-testing) -->
+  <circle id="front-center"      cx="70"  cy="24"  r="1" fill="none"/>
+  <circle id="front-left"        cx="22"  cy="55"  r="1" fill="none"/>
+  <circle id="front-right"       cx="118" cy="55"  r="1" fill="none"/>
+  <circle id="rear-center"       cx="70"  cy="196" r="1" fill="none"/>
+  <circle id="rear-left"         cx="22"  cy="162" r="1" fill="none"/>
+  <circle id="rear-right"        cx="118" cy="162" r="1" fill="none"/>
+  <circle id="driver-door"       cx="30"  cy="100" r="1" fill="none"/>
+  <circle id="passenger-door"    cx="110" cy="100" r="1" fill="none"/>
+  <circle id="driver-rear-door"  cx="30"  cy="130" r="1" fill="none"/>
+  <circle id="passenger-rear-door" cx="110" cy="130" r="1" fill="none"/>
+  <circle id="roof"              cx="70"  cy="110" r="1" fill="none"/>
+  <circle id="hood"              cx="70"  cy="38"  r="1" fill="none"/>
+  <circle id="trunk"             cx="70"  cy="180" r="1" fill="none"/>
+  <!-- Direction label -->
+  <text x="70" y="12" text-anchor="middle" font-size="8" fill="#777" font-family="sans-serif">FRONT</text>
+  <text x="70" y="214" text-anchor="middle" font-size="8" fill="#777" font-family="sans-serif">REAR</text>
+</svg>

@@ -19,8 +19,8 @@ export interface EscalationResult {
 }
 
 export async function escalateClaim(claim: ClaimObject): Promise<EscalationResult> {
-  const token = process.env.GITHUB_TOKEN;
-  const repo  = process.env.GITHUB_REPO; // e.g. "yourname/oracle-escalations"
+  const token = process.env.GITHUB_TOKEN?.trim();
+  const repo  = process.env.GITHUB_REPO?.trim(); // e.g. "yourname/oracle-escalations"
 
   // ─── Demo fallback (no token configured) ────────────────────────────────
   if (!token || !repo) {

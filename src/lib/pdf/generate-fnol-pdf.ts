@@ -4,6 +4,26 @@ import * as path from 'path';
 import { ClaimObject } from '@/types/claim';
 import { ALLIANZ_COORDS, COORDS_MAPPED } from './allianz-coords';
 import { selectSketch } from './sketch-selector';
+import { renderDamageDiagram } from '@/lib/damage-diagram';
+import { renderSceneMap } from '@/lib/scene-map';
+
+// Load the committed field map (calibrated coordinates)
+type FieldEntry = {
+  page: number; x: number; y: number; type: 'text' | 'checkbox' | 'image';
+  maxWidth?: number; width?: number; height?: number; fontSize?: number;
+};
+let _fieldMap: Record<string, FieldEntry> | null = null;
+function getFieldMap(): Record<string, FieldEntry> {
+  if (_fieldMap) return _fieldMap;
+  try {
+    const p = path.join(process.cwd(), 'src', 'lib', 'fnol-field-map.json');
+    const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
+    _fieldMap = raw.fields as Record<string, FieldEntry>;
+  } catch {
+    _fieldMap = {};
+  }
+  return _fieldMap!;
+}
 
 // ─── Impact zone ─────────────────────────────────────────────────────────────
 
@@ -151,9 +171,119 @@ export async function generateFnolPdf(
     templatePage = cover;
   }
 
-  // Overlay personal + incident data onto page 1 once ChatGPT coords are pasted in.
-  // Until then COORDS_MAPPED is false and this block is skipped — no breakage.
-  if (COORDS_MAPPED && templatePage) {
+  // ─── Field-map overlay (calibrated coordinates from fnol-field-map.json) ───
+  // This runs whenever a valid field map is committed to the repo.
+  const fm = getFieldMap();
+  const fmPages: PDFPage[] = [];
+  if (templatePage) fmPages[0] = templatePage;
+
+  const fmText = (key: string, value: string | null | undefined) => {
+    const f = fm[key];
+    if (!f || !value || f.type !== 'text') return;
+    const page = fmPages[f.page];
+    if (!page) return;
+    try {
+      page.drawText(value, {
+        x: f.x, y: f.y,
+        size: f.fontSize ?? 8,
+        font: regular,
+        color: rgb(0, 0, 0),
+        maxWidth: f.maxWidth,
+      });
+    } catch { /* non-fatal */ }
+  };
+
+  const fmCheck = (key: string, checked: boolean) => {
+    const f = fm[key];
+    if (!f || !checked || f.type !== 'checkbox') return;
+    const page = fmPages[f.page];
+    if (!page) return;
+    try {
+      page.drawRectangle({ x: f.x, y: f.y, width: 6, height: 6, color: rgb(0, 0, 0) });
+    } catch { /* non-fatal */ }
+  };
+
+  if (templatePage && Object.keys(fm).length > 0) {
+    const vehicle = [claim.vehicle_year, claim.vehicle_make, claim.vehicle_model].filter(Boolean).join(' ');
+    const incDate = claim.incident?.timestamp
+      ? new Date(claim.incident.timestamp).toLocaleDateString('en-GB') : null;
+    const incTime = claim.incident?.timestamp
+      ? new Date(claim.incident.timestamp).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : null;
+
+    fmText('incidentDate',       incDate);
+    fmText('incidentTime',       incTime);
+    fmText('incidentLocation',   claim.incident?.location?.address);
+    fmText('witnessName',        claim.witnesses?.[0]?.name);
+    fmText('witnessPhone',       claim.witnesses?.[0]?.phone);
+    fmText('claimantName',       claim.user?.name);
+    fmText('claimantAddress',    claim.address);
+    fmText('claimantPhone',      claim.phone);
+    fmText('claimantEmail',      claim.user?.email);
+    fmText('claimantDob',        claim.dob);
+    fmText('policyNumber',       claim.user?.policy_number);
+    fmText('insurer',            claim.user?.insurer);
+    fmText('licencePlate',       claim.licence_plate);
+    fmText('vehicleMakeModel',   vehicle || null);
+    fmText('otherDriverName',    claim.other_driver?.name);
+    fmText('otherDriverPhone',   claim.other_driver?.phone);
+    fmText('otherDriverInsurer', claim.other_driver?.insurer);
+    fmText('otherDriverPolicy',  claim.other_driver?.policy_number);
+    fmText('otherDriverLicence', claim.other_driver?.licence);
+    fmText('otherDriverVehicle', claim.other_driver?.vehicle);
+    fmText('policeReportNumber', claim.police_report?.report_number);
+    fmText('visibleDamageA',     claim.damage_analysis?.damage_location);
+    fmText('visibleDamageB',     claim.other_driver?.vehicle ? `Other vehicle: ${claim.other_driver.vehicle}` : null);
+    fmText('remarksA',           claim.incident?.description?.substring(0, 120));
+
+    // Injuries / other damage checkboxes
+    const hasInjury = claim.voice?.transcript?.toLowerCase().match(/injur|hurt|hospital|ambulance/);
+    fmCheck('injuriesCheckbox',   !!hasInjury);
+    fmCheck('noInjuriesCheckbox', !hasInjury);
+
+    // Section 12: circumstance checkboxes (both columns same set for Vehicle A)
+    const circumstances = claim.incident_circumstances ?? [];
+    for (let i = 1; i <= 17; i++) {
+      fmCheck(`circumstance_a_${i}`, circumstances.includes(i));
+      // Vehicle B gets same circumstances by default (adjuster corrects)
+      fmCheck(`circumstance_b_${i}`, false);
+    }
+
+    // Section 10: damage arrow diagrams
+    const daBox = fm['damageArrowA'];
+    if (daBox && daBox.type === 'image' && daBox.width && daBox.height) {
+      try {
+        const zonesA = claim.damage_zones_a ?? [];
+        const diagramA = await renderDamageDiagram(zonesA, daBox.width, daBox.height);
+        const imgA = await pdfDoc.embedPng(diagramA);
+        templatePage.drawImage(imgA, { x: daBox.x, y: daBox.y, width: daBox.width, height: daBox.height });
+      } catch (diagErr) {
+        console.warn('[pdf] damage diagram A failed:', diagErr);
+      }
+    }
+
+    // Section 13: accident scene map
+    const sceneBox = fm['sceneSketch'];
+    const loc = claim.incident?.location;
+    if (sceneBox && sceneBox.type === 'image' && sceneBox.width && sceneBox.height && loc?.lat && loc?.lng) {
+      try {
+        const sceneImg = await renderSceneMap({
+          lat: loc.lat, lng: loc.lng,
+          widthPx:  sceneBox.width  * 2, // 2x for sharpness
+          heightPx: sceneBox.height * 2,
+          vehicleAHeading: claim.vehicle_a_heading,
+          vehicleBHeading: claim.vehicle_b_heading,
+        });
+        const imgScene = await pdfDoc.embedPng(sceneImg);
+        templatePage.drawImage(imgScene, { x: sceneBox.x, y: sceneBox.y, width: sceneBox.width, height: sceneBox.height });
+      } catch (sceneErr) {
+        console.warn('[pdf] scene map failed:', sceneErr);
+      }
+    }
+  }
+
+  // ─── Legacy coordinate overlay (ALLIANZ_COORDS / allianz-coords.ts) ─────────
+  // Kept for backward compat. Skipped if field map already ran the same fields.
+  if (COORDS_MAPPED && templatePage && Object.keys(fm).length === 0) {
     const C = ALLIANZ_COORDS;
     const ov = (coord: { x: number; y: number; maxWidth: number }, value: string | null | undefined) => {
       if (!value || coord.x === 0) return;
@@ -241,11 +371,11 @@ export async function generateFnolPdf(
   const gap = () => { y -= 6; };
 
   // Title
-  page.drawText('FIRST NOTICE OF LOSS – SUPPLEMENTARY REPORT', {
+  currentPage.drawText('FIRST NOTICE OF LOSS – SUPPLEMENTARY REPORT', {
     x: MARGIN, y, font: bold, size: 13, color: rgb(0, 0.38, 0.75),
   });
   y -= 8;
-  page.drawLine({ start: { x: MARGIN, y }, end: { x: PAGE_W - MARGIN, y }, thickness: 1.5, color: rgb(0, 0.38, 0.75) });
+  currentPage.drawLine({ start: { x: MARGIN, y }, end: { x: PAGE_W - MARGIN, y }, thickness: 1.5, color: rgb(0, 0.38, 0.75) });
   y -= 20;
 
   // Meta
@@ -341,8 +471,8 @@ export async function generateFnolPdf(
     da?.damage_location ?? inc?.description,
   );
 
-  const sketchTargetPage = y >= 240 ? page : pdfDoc.addPage([PAGE_W, PAGE_H]);
-  if (sketchTargetPage !== page) {
+  const sketchTargetPage = y >= 240 ? currentPage : pdfDoc.addPage([PAGE_W, PAGE_H]);
+  if (sketchTargetPage !== currentPage) {
     sketchTargetPage.drawText('G – VEHICLE DAMAGE SKETCH', {
       x: MARGIN, y: PAGE_H - MARGIN - 10, size: 10, font: bold, color: rgb(0, 0.38, 0.75),
     });
@@ -363,18 +493,18 @@ export async function generateFnolPdf(
       sketchTargetPage.drawText(`Point of impact: ${zone}`, {
         x: px, y: py - 14, size: 8, font: bold, color: rgb(0.78, 0.12, 0.12),
       });
-      if (sketchTargetPage === page) y -= (sketch.pdfHeight + 30);
+      if (sketchTargetPage === currentPage) y -= (sketch.pdfHeight + 30);
     } catch {
       // PNG embed failed — fall back to vector sketch
-      const cy = sketchTargetPage === page ? y - 90 : PAGE_H / 2 + 30;
+      const cy = sketchTargetPage === currentPage ? y - 90 : PAGE_H / 2 + 30;
       drawVehicleSketch(sketchTargetPage, PAGE_W / 2, cy, zone, bold, regular);
-      if (sketchTargetPage === page) y -= 200;
+      if (sketchTargetPage === currentPage) y -= 200;
     }
   } else {
     // No PNGs yet — use existing vector sketch
-    const cy = sketchTargetPage === page ? y - 90 : PAGE_H / 2 + 30;
+    const cy = sketchTargetPage === currentPage ? y - 90 : PAGE_H / 2 + 30;
     drawVehicleSketch(sketchTargetPage, PAGE_W / 2, cy, zone, bold, regular);
-    if (sketchTargetPage === page) y -= 200;
+    if (sketchTargetPage === currentPage) y -= 200;
   }
   gap();
 
@@ -386,8 +516,8 @@ export async function generateFnolPdf(
     const sigBoxX = PAGE_W - MARGIN - sigBoxW;
     const sigBoxY = y - sigBoxH;
 
-    page.drawText('Claimant Signature:', { x: sigBoxX, y: sigBoxY + sigBoxH + 8, font: bold, size: 9, color: rgb(0.3, 0.3, 0.3) });
-    page.drawRectangle({ x: sigBoxX, y: sigBoxY, width: sigBoxW, height: sigBoxH, borderColor: rgb(0.6, 0.6, 0.6), borderWidth: 1 });
+    currentPage.drawText('Claimant Signature:', { x: sigBoxX, y: sigBoxY + sigBoxH + 8, font: bold, size: 9, color: rgb(0.3, 0.3, 0.3) });
+    currentPage.drawRectangle({ x: sigBoxX, y: sigBoxY, width: sigBoxW, height: sigBoxH, borderColor: rgb(0.6, 0.6, 0.6), borderWidth: 1 });
 
     try {
       const { data, type } = toBase64(signatureDataUrl);
@@ -397,7 +527,7 @@ export async function generateFnolPdf(
       const scale = Math.min(sigBoxW / sigImg.width, sigBoxH / sigImg.height) * 0.9;
       const iw = sigImg.width * scale;
       const ih = sigImg.height * scale;
-      page.drawImage(sigImg, {
+      currentPage.drawImage(sigImg, {
         x: sigBoxX + (sigBoxW - iw) / 2,
         y: sigBoxY + (sigBoxH - ih) / 2,
         width: iw,
@@ -408,8 +538,8 @@ export async function generateFnolPdf(
 
   // Footer
   const footerY = MARGIN - 10;
-  page.drawLine({ start: { x: MARGIN, y: footerY + 16 }, end: { x: PAGE_W - MARGIN, y: footerY + 16 }, thickness: 0.5, color: rgb(0.7, 0.7, 0.7) });
-  page.drawText(`Generated by ORACLE Claims Platform  ·  ${new Date().toLocaleDateString('en-GB')}`, {
+  currentPage.drawLine({ start: { x: MARGIN, y: footerY + 16 }, end: { x: PAGE_W - MARGIN, y: footerY + 16 }, thickness: 0.5, color: rgb(0.7, 0.7, 0.7) });
+  currentPage.drawText(`Generated by ORACLE Claims Platform  ·  ${new Date().toLocaleDateString('en-GB')}`, {
     x: MARGIN, y: footerY, font: regular, size: 7.5, color: rgb(0.5, 0.5, 0.5),
   });
 

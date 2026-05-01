@@ -41,7 +41,7 @@ export async function selectSketch(
     SKETCH_MANIFEST[0];
 
   // 2. Load PNG bytes
-  const pngPath = path.join(process.cwd(), 'public', 'png', entry.filename);
+  const pngPath = path.join(process.cwd(), 'public', 'png1', entry.filename);
   if (!fs.existsSync(pngPath)) return null;
   const pngBytes = fs.readFileSync(pngPath);
 

@@ -6,6 +6,7 @@ import { Shield, ChevronRight, Loader2 } from 'lucide-react';
 import { useClaimStore } from '@/store/claim-store';
 import { ClaimIncident } from '@/types/claim';
 import { supabase } from '@/lib/supabase';
+import { UserProfile } from '@/types/profile';
 
 interface Props {
   audioBlob: Blob;
@@ -13,25 +14,35 @@ interface Props {
   photosPending: boolean;
   extractedIncident?: Partial<ClaimIncident> | null;
   onDone: (claimId: string) => void;
+  profile?: UserProfile | null;
 }
 
-export function PersonalInfoStep({ audioBlob, photos, photosPending, extractedIncident, onDone }: Props) {
+export function PersonalInfoStep({ audioBlob, photos, photosPending, extractedIncident, onDone, profile }: Props) {
   const { savedUser, setSavedUser, setActiveClaim, setLiveTranscript } = useClaimStore();
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [form, setForm] = useState({
-    name: savedUser?.name || '',
-    email: savedUser?.email || '',
-    policy_number: savedUser?.policy_number || '',
-    insurer: savedUser?.insurer || '',
-    dob: '',
-    address: '',
-    phone: '',
-    licence_plate: '',
-    vehicle_make: '',
-    vehicle_model: '',
-    vehicle_year: '',
+    name:          profile?.name          || savedUser?.name          || '',
+    email:         profile?.email         || savedUser?.email         || '',
+    policy_number: profile?.policy_number || savedUser?.policy_number || '',
+    insurer:       profile?.insurer       || savedUser?.insurer       || '',
+    dob:           profile?.dob           || '',
+    address:       profile?.address       || '',
+    phone:         profile?.phone         || '',
+    licence_plate: profile?.licence_plate || '',
+    vehicle_make:  profile?.vehicle_make  || '',
+    vehicle_model: profile?.vehicle_model || '',
+    vehicle_year:  profile?.vehicle_year  || '',
   });
+
+  // Auto-submit when a profile is provided — no manual entry needed
+  useEffect(() => {
+    if (profile && !submitting) {
+      const t = setTimeout(() => handleSubmit(), 800);
+      return () => clearTimeout(t);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile]);
 
   const [location, setLocation] = useState({ lat: 40.7128, lng: -74.006, address: 'Detecting location...' });
   useEffect(() => {
@@ -135,6 +146,24 @@ export function PersonalInfoStep({ audioBlob, photos, photosPending, extractedIn
       setSubmitting(false);
     }
   };
+
+  // Profile fast-path: show a minimal confirm screen instead of the full form
+  if (profile) {
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 24px', background: 'var(--bg)', textAlign: 'center' }}>
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 22 }}>
+          <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(42,126,74,0.1)', border: '1px solid rgba(42,126,74,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+            <Shield size={28} style={{ color: '#2A7E4A' }} />
+          </div>
+          <h1 style={{ fontSize: 22, fontWeight: 300, letterSpacing: '-0.02em', margin: '0 0 6px' }}>Filing as {profile.name}</h1>
+          <p style={{ fontSize: 13, color: 'var(--ink-3)', margin: '0 0 4px' }}>{profile.insurer} · {profile.policy_number}</p>
+          <p style={{ fontSize: 13, color: 'var(--ink-3)', margin: '0 0 28px' }}>{profile.vehicle_year} {profile.vehicle_make} {profile.vehicle_model} · {profile.licence_plate}</p>
+          {submitError && <p style={{ fontSize: 12, color: '#fca5a5', margin: '0 0 16px' }}>{submitError}</p>}
+          <Loader2 size={18} style={{ animation: 'spin 0.9s linear infinite', color: 'var(--ink-3)' }} />
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '24px 24px max(env(safe-area-inset-bottom,0px),24px)', background: 'var(--bg)', overflowY: 'auto' }}>

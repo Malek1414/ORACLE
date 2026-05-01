@@ -48,8 +48,8 @@ function buildSystemPrompt(language: string): string {
   const de = language === 'de';
 
   const openingQ = de
-    ? 'Bitte beschreiben Sie den Unfall vollst\u00e4ndig \u2014 was passiert ist, wo und wann, wer beteiligt war, eventuelle Verletzungen und die sichtbaren Sch\u00e4den an Ihrem Fahrzeug.'
-    : 'Please describe the full accident \u2014 what happened, where and when it occurred, who was involved, any injuries, and the damage you can see on your vehicle.';
+    ? 'Hallo, hier ist Maya von Oracle Claims \u2014 ich sehe, dass Sie heute einen Unfall hatten. Zun\u00e4chst und vor allem: Sind Sie in Sicherheit und ben\u00f6tigen Sie Notfalldienste?'
+    : 'Hi, this is Maya from Oracle Claims \u2014 I can see you have been in an accident today. First and most importantly, are you safe and do you need emergency services?';
 
   const finalEx = de
     ? 'Alles da \u2014 jetzt fotografieren wir den Schaden.'
@@ -153,7 +153,7 @@ export async function geminiConverse(
   if (!apiKey) {
     if (isOpening) {
       return {
-        response: 'Please describe the full accident \u2014 what happened, where and when, who was involved, any injuries, and the damage you can see.',
+        response: 'Hi, this is Maya from Oracle Claims \u2014 I can see you have been in an accident today. First and most importantly, are you safe and do you need emergency services?',
         done: false,
         detectedLanguage,
         extracted: { ...emptyExtracted },

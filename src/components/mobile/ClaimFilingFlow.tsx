@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuthStore } from '@/store/auth-store';
 import { ConversationStep } from './ConversationStep';
 import { ClaimIncident } from '@/types/claim';
 import { CameraStep } from './CameraStep';
@@ -61,7 +62,8 @@ function StepIndicator({ current }: { current: FilingStep }) {
 }
 
 export function ClaimFilingFlow() {
-  const router = useRouter();
+  const router  = useRouter();
+  const profile = useAuthStore((s) => s.profile);
   const [step, setStep] = useState<FilingStep>('record');
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [photos, setPhotos] = useState<string[]>([]);
@@ -112,6 +114,7 @@ export function ClaimFilingFlow() {
             photosPending={photosPending}
             extractedIncident={extractedIncident}
             onDone={handlePersonalInfoDone}
+            profile={profile}
           />
         )}
         {step === 'processing'        && <ProcessingView onDone={handleProcessingDone} />}

@@ -189,7 +189,18 @@ export interface ClaimObject {
   // ─── FNOL state ───────────────────────────────────────────────────────
   photos_pending?: boolean;
   fnol_submitted?: boolean;
-  fnol_pdf_url?: string;
+  fnol_pdf_url?: string | null;
+  fnol_submitted_at?: string | null;
+  fnol_status?: 'not_started' | 'generating' | 'review' | 'submitted' | 'failed';
+  fnol_field_map_version?: string | null;
+
+  // ─── Extended AI extraction fields ───────────────────────────────────────
+  damage_zones_a?: string[] | null;
+  damage_zones_b?: string[] | null;
+  vehicle_a_heading?: string | null;
+  vehicle_b_heading?: string | null;
+  incident_road_type?: 'straight' | 'junction' | 'roundabout' | 'driveway' | 'other' | null;
+  incident_circumstances?: number[] | null;
 
   // ─── FNOL supplementary data ──────────────────────────────────────────
   other_driver?: OtherDriver | null;
@@ -222,6 +233,14 @@ export interface GeminiDamageResponse {
   damage_consistent_with_description: boolean;
   damage_details: string[];
   affected_parts: string[];
+  // Extended fields (optional — populated when photos + transcript both present)
+  damage_zones?: string[];
+  incident_circumstances?: number[];
+  vehicle_a_heading?: string;
+  vehicle_b_heading?: string;
+  incident_road_type?: 'straight' | 'junction' | 'roundabout' | 'driveway' | 'other';
+  injuries_mentioned?: boolean;
+  other_property_damage?: boolean;
 }
 
 export interface TavilySearchResult {

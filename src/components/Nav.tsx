@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useAuthStore } from '@/store/auth-store';
 
 // Iris / aperture mark — circle outline + centered dot
 export function OracleMark({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
@@ -38,6 +39,8 @@ const NAV_LINKS = [
 
 export function SiteNav() {
   const pathname = usePathname();
+  const router   = useRouter();
+  const { profile, logout } = useAuthStore();
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
   // Hide on ops dashboard
@@ -140,30 +143,33 @@ export function SiteNav() {
           )}
         </button>
 
-        {/* CTA */}
-        <Link
-          href="/claim"
-          style={{
-            fontSize: 12,
-            fontWeight: 400,
-            padding: '6px 14px',
-            borderRadius: 999,
-            border: '1px solid var(--line)',
-            background: 'transparent',
-            color: 'var(--ink)',
-            textDecoration: 'none',
-            transition: 'border-color 0.2s, color 0.2s',
-            whiteSpace: 'nowrap',
-          }}
-          onMouseEnter={e => {
-            e.currentTarget.style.borderColor = 'var(--ink)';
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.borderColor = 'var(--line)';
-          }}
-        >
-          File a Claim
-        </Link>
+        {profile ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '5px 12px', borderRadius: 999, background: 'var(--bg-elev)', border: '1px solid var(--line)' }}>
+              <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--bg)', fontFamily: 'var(--font-mono)' }}>
+                  {profile.name.charAt(0).toUpperCase()}
+                </span>
+              </div>
+              <span style={{ fontSize: 12, color: 'var(--ink-2)', fontFamily: 'var(--font-sans)' }}>{profile.name.split(' ')[0]}</span>
+            </div>
+            <button
+              onClick={() => { logout(); router.push('/'); }}
+              style={{ fontSize: 12, padding: '6px 12px', borderRadius: 999, border: '1px solid var(--line)', background: 'transparent', color: 'var(--ink-3)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+            >
+              Sign out
+            </button>
+          </div>
+        ) : (
+          <Link
+            href="/login"
+            style={{ fontSize: 12, fontWeight: 400, padding: '6px 14px', borderRadius: 999, border: '1px solid var(--line)', background: 'transparent', color: 'var(--ink)', textDecoration: 'none', whiteSpace: 'nowrap', transition: 'border-color 0.2s' }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--ink)'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--line)'; }}
+          >
+            Sign in
+          </Link>
+        )}
       </div>
     </nav>
   );
